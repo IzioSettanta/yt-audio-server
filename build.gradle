@@ -9,11 +9,19 @@ buildscript {
     }
 }
 
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
+}
+
 apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion 33
-
+    
     defaultConfig {
         applicationId "com.example.ytaudioserver"
         minSdkVersion 21
@@ -21,45 +29,29 @@ android {
         versionCode 1
         versionName "1.0"
     }
-
+    
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-
+    
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-
-    lintOptions {
-        abortOnError false
-    }
-
-    sourceSets {
-        main {
-            manifest.srcFile 'src/main/AndroidManifest.xml'
-            java.srcDirs = ['src/main/java']
-            res.srcDirs = ['src/main/res']
-        }
-    }
-}
-
-repositories {
-    google()
-    mavenCentral()
-    maven { url 'https://jitpack.io' }
+    
+    namespace "com.example.ytaudioserver"
 }
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.5.1'
     implementation 'com.google.android.material:material:1.6.1'
-
+    
     // NewPipe Extractor
     implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.24.6'
-
+    
     // NanoHTTPD - server HTTP leggero
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
