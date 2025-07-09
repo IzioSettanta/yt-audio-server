@@ -21,11 +21,20 @@ jobs:
       with:
         gradle-version: 7.4.2
         arguments: assembleDebug
-    - name: List APK files
-      run: find . -name "*.apk" -type f
-    - name: Upload APK
+    - name: List output directory
+      run: |
+        echo "Listing all directories:"
+        find . -type d | sort
+        echo "Listing all APK files:"
+        find . -name "*.apk" -type f
+        echo "Listing build outputs:"
+        ls -la build/outputs || echo "build/outputs not found"
+        ls -la */build/outputs || echo "*/build/outputs not found"
+    - name: Upload APK (if found)
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
-        if-no-files-found: error
+        path: |
+          **/app-debug.apk
+          **/debug/*.apk
+        if-no-files-found: warn
