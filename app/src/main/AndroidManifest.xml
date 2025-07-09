@@ -3,15 +3,14 @@
     package="com.example.ytaudioserver">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
     <application
         android:allowBackup="true"
         android:label="YT Audio Server"
-        android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat">
-
+        
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -20,10 +19,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <service
-            android:name=".ServerService"
-            android:enabled="true"
-            android:exported="false" />
+        
     </application>
 </manifest>
