@@ -15,19 +15,31 @@ import androidx.core.app.NotificationCompat;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.nanohttpd.protocols.http.IHTTPSession;
-import org.nanohttpd.protocols.http.NanoHTTPD;
-import org.nanohttpd.protocols.http.response.Response;
-import org.nanohttpd.protocols.http.response.Status;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.StreamingService;
+import org.schabi.newpipe.extractor.downloader.Downloader;
+import org.schabi.newpipe.extractor.downloader.Request;
+import org.schabi.newpipe.extractor.downloader.Response;
 import org.schabi.newpipe.extractor.exceptions.ExtractionException;
+import org.schabi.newpipe.extractor.localization.Localization;
 import org.schabi.newpipe.extractor.stream.AudioStream;
 import org.schabi.newpipe.extractor.stream.StreamInfo;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ServerService extends Service {
 
@@ -37,16 +49,17 @@ public class ServerService extends Service {
     private static final int NOTIFICATION_ID = 1;
 
     private Server server;
+    private boolean isServiceRunning = false;
 
     @Override
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "Servizio creato");
-
-        // Inizializza NewPipe
+        
+        // Inizializza NewPipe con un Downloader reale
         try {
-            NewPipe.init();
-            Log.d(TAG, "NewPipe inizializzato");
+            NewPipe.init(new RealDownloader(), Localization.DEFAULT);
+            Log.d(TAG, "NewPipe inizializzato con successo");
         } catch (Exception e) {
             Log.e(TAG, "Errore inizializzazione NewPipe", e);
         }
@@ -54,8 +67,15 @@ public class ServerService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.d(TAG, "onStartCommand chiamato");
+        
+        if (isServiceRunning) {
+            Log.d(TAG, "Servizio già in esecuzione");
+            return START_STICKY;
+        }
+        
         createNotificationChannel();
-
+        
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -73,6 +93,7 @@ public class ServerService extends Service {
         try {
             server = new Server(PORT);
             server.start();
+            isServiceRunning = true;
             Log.d(TAG, "Server avviato sulla porta " + PORT);
         } catch (IOException e) {
             Log.e(TAG, "Errore avvio server", e);
@@ -83,10 +104,14 @@ public class ServerService extends Service {
 
     @Override
     public void onDestroy() {
+        Log.d(TAG, "onDestroy chiamato");
+        
         if (server != null) {
             server.stop();
             Log.d(TAG, "Server fermato");
         }
+        
+        isServiceRunning = false;
         super.onDestroy();
     }
 
@@ -107,71 +132,210 @@ public class ServerService extends Service {
             manager.createNotificationChannel(serviceChannel);
         }
     }
-
-    // Server HTTP interno
-    private class Server extends NanoHTTPD {
-
-        public Server(int port) {
-            super(port);
-        }
-
+    
+    // Implementazione reale del Downloader per NewPipe
+    private static class RealDownloader implements Downloader {
         @Override
-        public Response serve(IHTTPSession session) {
-            String uri = session.getUri();
-            Map<String, String> params = session.getParms();
-
-            // Gestione richiesta /ytinfo
-            if (uri.equals("/ytinfo")) {
-                String videoId = params.get("id");
-                if (videoId == null || videoId.isEmpty()) {
-                    return newJsonResponse("{\"error\":\"Missing id parameter\"}");
-                }
-
-                try {
-                    // Crea URL YouTube
-                    String url = "https://www.youtube.com/watch?v=" + videoId;
-
-                    // Ottieni servizio YouTube (ID 0)
-                    StreamingService youtubeService = NewPipe.getService(0);
-
-                    // Estrai informazioni
-                    StreamInfo streamInfo = StreamInfo.getInfo(youtubeService, url);
-
-                    // Ottieni titolo e thumbnail
-                    String title = streamInfo.getName();
-                    String thumbnail = streamInfo.getThumbnailUrl();
-
-                    // Ottieni URL audio
-                    String audioUrl = "";
-                    List<AudioStream> audioStreams = streamInfo.getAudioStreams();
-                    if (!audioStreams.isEmpty()) {
-                        audioUrl = audioStreams.get(0).getUrl();
-                    }
-
-                    // Crea risposta JSON
-                    JSONObject result = new JSONObject();
-                    result.put("title", title);
-                    result.put("thumbnail", thumbnail);
-                    result.put("audio_url", audioUrl);
-
-                    return newJsonResponse(result.toString());
-
-                } catch (IOException | ExtractionException | JSONException e) {
-                    Log.e(TAG, "Errore estrazione video", e);
-                    return newJsonResponse("{\"error\":\"" + e.getMessage() + "\"}");
+        public Response execute(Request request) throws IOException {
+            URL url = new URL(request.url());
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod(request.httpMethod());
+            
+            // Imposta gli headers
+            for (Map.Entry<String, List<String>> entry : request.headers().entrySet()) {
+                for (String value : entry.getValue()) {
+                    connection.addRequestProperty(entry.getKey(), value);
                 }
             }
-
-            // Homepage del server
-            return newJsonResponse("{\"status\":\"YT Audio Server running\",\"endpoints\":[\"/ytinfo?id=VIDEO_ID\"]}");
-        }
-
-        private Response newJsonResponse(String json) {
-            return Response.newFixedLengthResponse(
-                    Status.OK,
-                    "application/json",
-                    json
+            
+            // Leggi la risposta
+            int responseCode = connection.getResponseCode();
+            InputStream in = responseCode >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            
+            // Converti InputStream in String
+            BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            reader.close();
+            
+            // Crea Response object
+            return new Response(
+                    responseCode,
+                    connection.getResponseMessage(),
+                    connection.getHeaderFields(),
+                    response.toString(),
+                    url.toString()
             );
+        }
+    }
+
+    // Server HTTP semplificato
+    private class Server {
+        private final int port;
+        private ServerSocket serverSocket;
+        private boolean running = false;
+        private ExecutorService threadPool = Executors.newCachedThreadPool();
+        
+        public Server(int port) {
+            this.port = port;
+        }
+        
+        public void start() throws IOException {
+            serverSocket = new ServerSocket(port);
+            running = true;
+            
+            new Thread(() -> {
+                while (running) {
+                    try {
+                        final Socket socket = serverSocket.accept();
+                        threadPool.execute(() -> handleRequest(socket));
+                    } catch (IOException e) {
+                        if (running) {
+                            Log.e(TAG, "Errore accettazione connessione", e);
+                        }
+                    }
+                }
+            }).start();
+        }
+        
+        public void stop() {
+            running = false;
+            try {
+                if (serverSocket != null) {
+                    serverSocket.close();
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Errore chiusura server", e);
+            }
+            threadPool.shutdown();
+        }
+        
+        private void handleRequest(Socket socket) {
+            try {
+                // Leggi la richiesta
+                InputStream in = socket.getInputStream();
+                byte[] buffer = new byte[8192];
+                int read = in.read(buffer);
+                String request = new String(buffer, 0, read);
+                
+                // Analizza la richiesta HTTP
+                String[] lines = request.split("\r\n");
+                String firstLine = lines[0];
+                String[] parts = firstLine.split(" ");
+                String method = parts[0];
+                String path = parts[1];
+                
+                Log.d(TAG, "Richiesta ricevuta: " + method + " " + path);
+                
+                // Estrai i parametri dalla query string
+                Map<String, String> params = new HashMap<>();
+                if (path.contains("?")) {
+                    String query = path.substring(path.indexOf("?") + 1);
+                    String[] queryParams = query.split("&");
+                    for (String param : queryParams) {
+                        String[] keyValue = param.split("=");
+                        if (keyValue.length == 2) {
+                            params.put(keyValue[0], keyValue[1]);
+                        }
+                    }
+                    path = path.substring(0, path.indexOf("?"));
+                }
+                
+                // Gestisci la richiesta
+                String response;
+                if (path.equals("/ytinfo") && method.equals("GET")) {
+                    String videoId = params.get("id");
+                    if (videoId == null || videoId.isEmpty()) {
+                        response = "{\"error\":\"Missing id parameter\"}";
+                    } else {
+                        try {
+                            response = getVideoInfo(videoId);
+                        } catch (Exception e) {
+                            Log.e(TAG, "Errore nell'estrazione del video", e);
+                            response = "{\"error\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}";
+                        }
+                    }
+                } else {
+                    response = "{\"status\":\"YT Audio Server running\",\"endpoints\":[\"/ytinfo?id=VIDEO_ID\"]}";
+                }
+                
+                // Invia la risposta
+                OutputStream out = socket.getOutputStream();
+                String httpResponse = 
+                        "HTTP/1.1 200 OK\r\n" +
+                        "Content-Type: application/json\r\n" +
+                        "Content-Length: " + response.length() + "\r\n" +
+                        "Connection: close\r\n\r\n" +
+                        response;
+                out.write(httpResponse.getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                
+                // Chiudi la connessione
+                socket.close();
+                
+            } catch (IOException e) {
+                Log.e(TAG, "Errore gestione richiesta", e);
+                try {
+                    socket.close();
+                } catch (IOException ignored) {}
+            }
+        }
+        
+        private String getVideoInfo(String videoId) {
+            try {
+                Log.d(TAG, "Estrazione info per video ID: " + videoId);
+                
+                // Crea URL YouTube
+                String url = "https://www.youtube.com/watch?v=" + videoId;
+                
+                // Ottieni servizio YouTube (ID 0)
+                StreamingService youtubeService = NewPipe.getService(0);
+                
+                // Estrai informazioni
+                Log.d(TAG, "Inizio estrazione StreamInfo...");
+                StreamInfo streamInfo = StreamInfo.getInfo(youtubeService, url);
+                Log.d(TAG, "StreamInfo estratto con successo");
+                
+                // Ottieni titolo e thumbnail
+                String title = streamInfo.getName();
+                Log.d(TAG, "Titolo: " + title);
+                
+                String thumbnail = "";
+                if (streamInfo.getThumbnails() != null && !streamInfo.getThumbnails().isEmpty()) {
+                    thumbnail = streamInfo.getThumbnails().get(0).getUrl();
+                    Log.d(TAG, "Thumbnail: " + thumbnail);
+                } else {
+                    Log.d(TAG, "Nessuna thumbnail trovata");
+                }
+                
+                // Ottieni URL audio
+                String audioUrl = "";
+                List<AudioStream> audioStreams = streamInfo.getAudioStreams();
+                if (!audioStreams.isEmpty()) {
+                    audioUrl = audioStreams.get(0).getUrl();
+                    Log.d(TAG, "URL audio trovato");
+                } else {
+                    Log.d(TAG, "Nessun URL audio trovato");
+                }
+                
+                // Crea risposta JSON
+                JSONObject result = new JSONObject();
+                result.put("title", title);
+                result.put("thumbnail", thumbnail);
+                result.put("audio_url", audioUrl);
+                
+                String jsonResult = result.toString();
+                Log.d(TAG, "Risposta JSON: " + jsonResult);
+                
+                return jsonResult;
+                
+            } catch (IOException | ExtractionException | JSONException e) {
+                Log.e(TAG, "Errore estrazione video", e);
+                return "{\"error\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}";
+            }
         }
     }
 }
