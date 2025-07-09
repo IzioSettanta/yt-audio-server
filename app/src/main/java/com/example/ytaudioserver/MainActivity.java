@@ -55,25 +55,11 @@ public class MainActivity extends AppCompatActivity {
     private boolean isServerRunning = false;
     private ExecutorService threadPool;
 
-@Override
-protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    setContentView(R.layout.activity_main);
-    
-    // Inizializza NewPipe
-    try {
-        NewPipe.init(new Downloader() {
-            @Override
-            public Response execute(Request request) throws IOException {
-                // Implementa il downloader qui (come nell'esempio precedente)
-                // Copia il codice del RealDownloader da ServerService.java qui
-                return null;
-            }
-        }, Localization.DEFAULT);
-        Log.d(TAG, "NewPipe inizializzato con successo");
-    } catch (Exception e) {
-        Log.e(TAG, "Errore inizializzazione NewPipe", e);
-    }
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        
         Log.d(TAG, "onCreate chiamato");
         showToast("App avviata");
 
@@ -100,6 +86,14 @@ protected void onCreate(Bundle savedInstanceState) {
                 stopServer();
             }
         });
+        
+        // Inizializza NewPipe
+        try {
+            NewPipe.init(new RealDownloader(), Localization.DEFAULT);
+            Log.d(TAG, "NewPipe inizializzato con successo");
+        } catch (Exception e) {
+            Log.e(TAG, "Errore inizializzazione NewPipe", e);
+        }
     }
 
     @Override
@@ -187,160 +181,138 @@ protected void onCreate(Bundle savedInstanceState) {
         }
     }
     
- private void handleRequest(Socket socket) {
-    try {
-        // Leggi la richiesta
-        InputStream in = socket.getInputStream();
-        byte[] buffer = new byte[8192];
-        int read = in.read(buffer);
-        String request = new String(buffer, 0, read);
-
-        // Analizza la richiesta HTTP
-        String[] lines = request.split("\r\n");
-        String firstLine = lines[0];
-        String[] parts = firstLine.split(" ");
-        String method = parts[0];
-        String path = parts[1];
-
-        Log.d(TAG, "Richiesta ricevuta: " + method + " " + path);
-        showToast("Richiesta: " + method + " " + path);
-
-        // Estrai i parametri dalla query string
-        Map<String, String> params = new HashMap<>();
-        if (path.contains("?")) {
-            String query = path.substring(path.indexOf("?") + 1);
-            String[] queryParams = query.split("&");
-            for (String param : queryParams) {
-                String[] keyValue = param.split("=");
-                if (keyValue.length == 2) {
-                    params.put(keyValue[0], keyValue[1]);
-                }
-            }
-            path = path.substring(0, path.indexOf("?"));
-        }
-
-        // Gestisci la richiesta
-        String response;
-        if (path.equals("/ytinfo") && method.equals("GET")) {
-            String videoId = params.get("id");
-            if (videoId == null || videoId.isEmpty()) {
-                response = "{\"error\":\"Missing id parameter\"}";
-            } else {
-                try {
-                    // Usa NewPipe Extractor
-                    response = getVideoInfo(videoId);
-                } catch (Exception e) {
-                    Log.e(TAG, "Errore nell'estrazione del video", e);
-                    response = "{\"error\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}";
-                }
-            }
-        } else {
-            response = "{\"status\":\"success\",\"message\":\"YT Audio Server running\",\"endpoints\":[\"/ytinfo?id=VIDEO_ID\"]}";
-        }
-
-        // Invia la risposta
-        OutputStream out = socket.getOutputStream();
-        String httpResponse =
-                "HTTP/1.1 200 OK\r\n" +
-                        "Content-Type: application/json\r\n" +
-                        "Content-Length: " + response.length() + "\r\n" +
-                        "Connection: close\r\n\r\n" +
-                        response;
-        out.write(httpResponse.getBytes(StandardCharsets.UTF_8));
-        out.flush();
-
-        // Chiudi la connessione
-        socket.close();
-
-        showToast("Risposta inviata");
-
-    } catch (IOException e) {
-        Log.e(TAG, "Errore nella gestione della richiesta", e);
+    private void handleRequest(Socket socket) {
         try {
-            socket.close();
-        } catch (IOException ex) {
-            Log.e(TAG, "Errore nella chiusura del socket", ex);
-        }
-    }
-}
-    
-   private String getVideoInfo(String videoId) {
-    try {
-        Log.d(TAG, "Estrazione info per video ID: " + videoId);
-
-        // Crea URL YouTube
-        String url = "https://www.youtube.com/watch?v=" + videoId;
-
-        // Ottieni servizio YouTube (ID 0)
-        StreamingService youtubeService = NewPipe.getService(0);
-
-        // Estrai informazioni
-        Log.d(TAG, "Inizio estrazione StreamInfo...");
-        StreamInfo streamInfo = StreamInfo.getInfo(youtubeService, url);
-        Log.d(TAG, "StreamInfo estratto con successo");
-
-        // Ottieni titolo e thumbnail
-        String title = streamInfo.getName();
-        Log.d(TAG, "Titolo: " + title);
-
-        String thumbnail = "";
-        if (streamInfo.getThumbnails() != null && !streamInfo.getThumbnails().isEmpty()) {
-            thumbnail = streamInfo.getThumbnails().get(0).getUrl();
-            Log.d(TAG, "Thumbnail: " + thumbnail);
-        } else {
-            Log.d(TAG, "Nessuna thumbnail trovata");
-        }
-
-        // Ottieni URL audio
-        String audioUrl = "";
-        List<AudioStream> audioStreams = streamInfo.getAudioStreams();
-        if (!audioStreams.isEmpty()) {
-            audioUrl = audioStreams.get(0).getUrl();
-            Log.d(TAG, "URL audio trovato");
-        } else {
-            Log.d(TAG, "Nessun URL audio trovato");
-        }
-
-        // Crea risposta JSON
-        JSONObject result = new JSONObject();
-        result.put("title", title);
-        result.put("thumbnail", thumbnail);
-        result.put("audio_url", audioUrl);
-
-        String jsonResult = result.toString();
-        Log.d(TAG, "Risposta JSON: " + jsonResult);
-
-        return jsonResult;
-
-    } catch (IOException | ExtractionException | JSONException e) {
-        Log.e(TAG, "Errore nell'estrazione del video", e);
-        return "{\"error\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}";
-    }
-}
-
-    private void updateUI() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                String ipAddress = getLocalIpAddress();
-                
-                if (ipAddress != null) {
-                    statusTextView.setText(
-                        "Server: " + (isServerRunning ? "ATTIVO" : "INATTIVO") + "\n" +
-                        "URL: http://" + ipAddress + ":8080/ytinfo?id=VIDEO_ID\n\n" +
-                        "Istruzioni:\n" +
-                        "1. Avvia il server con il pulsante 'Avvia Server'\n" +
-                        "2. Usa l'URL sopra in Kodular\n" +
-                        "3. Sostituisci VIDEO_ID con l'ID del video YouTube"
-                    );
-                } else {
-                    statusTextView.setText("Impossibile ottenere l'indirizzo IP. Sei connesso a una rete Wi-Fi?");
+            // Leggi la richiesta
+            InputStream in = socket.getInputStream();
+            byte[] buffer = new byte[8192];
+            int read = in.read(buffer);
+            String request = new String(buffer, 0, read);
+            
+            // Analizza la richiesta HTTP
+            String[] lines = request.split("\r\n");
+            String firstLine = lines[0];
+            String[] parts = firstLine.split(" ");
+            String method = parts[0];
+            String path = parts[1];
+            
+            Log.d(TAG, "Richiesta ricevuta: " + method + " " + path);
+            showToast("Richiesta: " + method + " " + path);
+            
+            // Estrai i parametri dalla query string
+            Map<String, String> params = new HashMap<>();
+            if (path.contains("?")) {
+                String query = path.substring(path.indexOf("?") + 1);
+                String[] queryParams = query.split("&");
+                for (String param : queryParams) {
+                    String[] keyValue = param.split("=");
+                    if (keyValue.length == 2) {
+                        params.put(keyValue[0], keyValue[1]);
+                    }
                 }
-                
-                startButton.setEnabled(!isServerRunning);
-                stopButton.setEnabled(isServerRunning);
+                path = path.substring(0, path.indexOf("?"));
             }
-        });
+            
+            // Crea una risposta
+            String response;
+            
+            if (path.equals("/ytinfo") && method.equals("GET")) {
+                String videoId = params.get("id");
+                if (videoId == null || videoId.isEmpty()) {
+                    response = "{\"error\":\"Missing id parameter\"}";
+                } else {
+                    try {
+                        // Usa NewPipe Extractor
+                        Log.d(TAG, "Chiamata a getVideoInfo per videoId: " + videoId);
+                        response = getVideoInfo(videoId);
+                        Log.d(TAG, "Risposta da getVideoInfo: " + response);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Errore nell'estrazione del video", e);
+                        response = "{\"error\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}";
+                    }
+                }
+            } else {
+                response = "{\"status\":\"success\",\"message\":\"YT Audio Server running\",\"endpoints\":[\"/ytinfo?id=VIDEO_ID\"]}";
+            }
+            
+            // Invia la risposta
+            OutputStream out = socket.getOutputStream();
+            String httpResponse = 
+                    "HTTP/1.1 200 OK\r\n" +
+                    "Content-Type: application/json\r\n" +
+                    "Content-Length: " + response.length() + "\r\n" +
+                    "Connection: close\r\n\r\n" +
+                    response;
+            out.write(httpResponse.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            
+            // Chiudi la connessione
+            socket.close();
+            
+            showToast("Risposta inviata");
+            
+        } catch (IOException e) {
+            Log.e(TAG, "Errore nella gestione della richiesta", e);
+            try {
+                socket.close();
+            } catch (IOException ex) {
+                Log.e(TAG, "Errore nella chiusura del socket", ex);
+            }
+        }
+    }
+
+    private String getVideoInfo(String videoId) {
+        try {
+            Log.d(TAG, "Inizio getVideoInfo per videoId: " + videoId);
+            
+            // Crea URL YouTube
+            String url = "https://www.youtube.com/watch?v=" + videoId;
+            
+            // Ottieni servizio YouTube (ID 0)
+            StreamingService youtubeService = NewPipe.getService(0);
+            
+            // Estrai informazioni
+            Log.d(TAG, "Inizio estrazione StreamInfo...");
+            StreamInfo streamInfo = StreamInfo.getInfo(youtubeService, url);
+            Log.d(TAG, "StreamInfo estratto con successo");
+            
+            // Ottieni titolo e thumbnail
+            String title = streamInfo.getName();
+            Log.d(TAG, "Titolo: " + title);
+            
+            String thumbnail = "";
+            if (streamInfo.getThumbnails() != null && !streamInfo.getThumbnails().isEmpty()) {
+                thumbnail = streamInfo.getThumbnails().get(0).getUrl();
+                Log.d(TAG, "Thumbnail: " + thumbnail);
+            } else {
+                Log.d(TAG, "Nessuna thumbnail trovata");
+            }
+            
+            // Ottieni URL audio
+            String audioUrl = "";
+            List<AudioStream> audioStreams = streamInfo.getAudioStreams();
+            if (!audioStreams.isEmpty()) {
+                audioUrl = audioStreams.get(0).getUrl();
+                Log.d(TAG, "URL audio trovato");
+            } else {
+                Log.d(TAG, "Nessun URL audio trovato");
+            }
+            
+            // Crea risposta JSON
+            JSONObject result = new JSONObject();
+            result.put("title", title);
+            result.put("thumbnail", thumbnail);
+            result.put("audio_url", audioUrl);
+            
+            String jsonResult = result.toString();
+            Log.d(TAG, "Risposta JSON: " + jsonResult);
+            
+            return jsonResult;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Errore nell'estrazione del video", e);
+            return "{\"error\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}";
+        }
     }
 
     private String getLocalIpAddress() {
