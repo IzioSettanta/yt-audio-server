@@ -57,3 +57,5 @@ dependencies {
     // Usa una versione di Rhino compatibile con Android
     implementation 'com.faendir.rhino:rhino-android:1.6.0'
 }
+
+
