@@ -28,6 +28,7 @@ android {
         targetSdkVersion 33
         versionCode 1
         versionName "1.0"
+        multiDexEnabled true
     }
     
     buildTypes {
@@ -48,6 +49,7 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.5.1'
     implementation 'com.google.android.material:material:1.6.1'
+    implementation 'androidx.multidex:multidex:2.0.1'
     
     // NewPipe Extractor senza Rhino
     implementation('com.github.TeamNewPipe:NewPipeExtractor:v0.24.6') {
@@ -57,5 +59,3 @@ dependencies {
     // Usa una versione di Rhino compatibile con Android
     implementation 'com.faendir.rhino:rhino-android:1.6.0'
 }
-
-
