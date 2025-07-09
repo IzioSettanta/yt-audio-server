@@ -49,6 +49,11 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.5.1'
     implementation 'com.google.android.material:material:1.6.1'
     
-    // NewPipe Extractor
-    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.24.6'
+    // NewPipe Extractor senza Rhino
+    implementation('com.github.TeamNewPipe:NewPipeExtractor:v0.24.6') {
+        exclude group: 'org.mozilla', module: 'rhino'
+    }
+    
+    // Usa una versione di Rhino compatibile con Android
+    implementation 'com.faendir.rhino:rhino-android:1.6.0'
 }
