@@ -8,13 +8,13 @@
     tools:context=".MainActivity">
 
     <TextView
+        android:id="@+id/versionTextView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="YT Audio Server"
-        android:textSize="24sp"
-        android:textStyle="bold"
         android:gravity="center"
-        android:layout_marginBottom="32dp" />
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp"
+        android:text="Versione: 1.0" />
 
     <TextView
         android:id="@+id/statusTextView"
@@ -23,7 +23,7 @@
         android:text="Server non avviato"
         android:textSize="16sp"
         android:gravity="center"
-        android:layout_marginBottom="32dp" />
+        android:layout_marginBottom="16dp" />
 
     <Button
         android:id="@+id/startButton"
@@ -36,6 +36,34 @@
         android:id="@+id/stopButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Ferma Server" />
+        android:text="Ferma Server"
+        android:layout_marginBottom="16dp" />
+    
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Inserisci l'ID di un video YouTube:"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp" />
 
+    <EditText
+        android:id="@+id/edtVideoId"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="ID video"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/btnGetInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Estrai" />
+
+    <TextView
+        android:id="@+id/lblResult"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Risultato apparirà qui"
+        android:textSize="14sp" />
 </LinearLayout>
