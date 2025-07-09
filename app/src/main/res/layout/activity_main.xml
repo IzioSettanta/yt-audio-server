@@ -38,11 +38,4 @@
         android:layout_height="wrap_content"
         android:text="Ferma Server" />
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="Come usare:\n1. Avvia il server\n2. In Kodular, usa Web component per chiamare l'URL mostrato\n3. Riceverai JSON con titolo, thumbnail e URL audio"
-        android:textSize="14sp" />
-
 </LinearLayout>
