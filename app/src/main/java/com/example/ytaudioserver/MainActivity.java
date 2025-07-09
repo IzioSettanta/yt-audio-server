@@ -55,11 +55,25 @@ public class MainActivity extends AppCompatActivity {
     private boolean isServerRunning = false;
     private ExecutorService threadPool;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main);
+    
+    // Inizializza NewPipe
+    try {
+        NewPipe.init(new Downloader() {
+            @Override
+            public Response execute(Request request) throws IOException {
+                // Implementa il downloader qui (come nell'esempio precedente)
+                // Copia il codice del RealDownloader da ServerService.java qui
+                return null;
+            }
+        }, Localization.DEFAULT);
+        Log.d(TAG, "NewPipe inizializzato con successo");
+    } catch (Exception e) {
+        Log.e(TAG, "Errore inizializzazione NewPipe", e);
+    }
         Log.d(TAG, "onCreate chiamato");
         showToast("App avviata");
 
