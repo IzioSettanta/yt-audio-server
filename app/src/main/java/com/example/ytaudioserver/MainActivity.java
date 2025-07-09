@@ -49,7 +49,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private static final int PORT = 8080;
-    
+
     private TextView statusTextView;
     private Button startButton;
     private Button stopButton;
@@ -67,14 +67,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Inizializza NewPipe
-        try {
-            NewPipe.init(new RealDownloader(), Localization.DEFAULT);
-            Log.d(TAG, "NewPipe inizializzato con successo");
-        } catch (Exception e) {
-            Log.e(TAG, "Errore inizializzazione NewPipe", e);
-        }
-        
         Log.d(TAG, "onCreate chiamato");
         showToast("App avviata");
 
@@ -84,8 +76,6 @@ public class MainActivity extends AppCompatActivity {
         versionTextView = findViewById(R.id.versionTextView);
         edtVideoId = findViewById(R.id.edtVideoId);
         lblResult = findViewById(R.id.lblResult);
-        
-        threadPool = Executors.newCachedThreadPool();
 
         try {
             PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
@@ -345,6 +335,7 @@ public class MainActivity extends AppCompatActivity {
             result.put("title", title);
             result.put("thumbnail", thumbnail);
             result.put("audio_url", audioUrl);
+            result.put("url", "https://www.youtube.com/watch?v=" + videoId); // Aggiungi l'URL del video
             
             String jsonResult = result.toString();
             Log.d(TAG, "Risposta JSON: " + jsonResult);
