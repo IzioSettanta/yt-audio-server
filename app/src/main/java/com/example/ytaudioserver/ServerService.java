@@ -15,28 +15,14 @@ import androidx.core.app.NotificationCompat;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.schabi.newpipe.extractor.NewPipe;
-import org.schabi.newpipe.extractor.StreamingService;
-import org.schabi.newpipe.extractor.downloader.Downloader;
-import org.schabi.newpipe.extractor.downloader.Request;
-import org.schabi.newpipe.extractor.downloader.Response;
-import org.schabi.newpipe.extractor.exceptions.ExtractionException;
-import org.schabi.newpipe.extractor.localization.Localization;
-import org.schabi.newpipe.extractor.stream.AudioStream;
-import org.schabi.newpipe.extractor.stream.StreamInfo;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,14 +41,6 @@ public class ServerService extends Service {
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "Servizio creato");
-        
-        // Inizializza NewPipe con un Downloader reale
-        try {
-            NewPipe.init(new RealDownloader(), Localization.DEFAULT);
-            Log.d(TAG, "NewPipe inizializzato con successo");
-        } catch (Exception e) {
-            Log.e(TAG, "Errore inizializzazione NewPipe", e);
-        }
     }
 
     @Override
@@ -130,45 +108,6 @@ public class ServerService extends Service {
             );
             NotificationManager manager = getSystemService(NotificationManager.class);
             manager.createNotificationChannel(serviceChannel);
-        }
-    }
-    
-    // Implementazione reale del Downloader per NewPipe
-    private static class RealDownloader implements Downloader {
-        @Override
-        public Response execute(Request request) throws IOException {
-            URL url = new URL(request.url());
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod(request.httpMethod());
-            
-            // Imposta gli headers
-            for (Map.Entry<String, List<String>> entry : request.headers().entrySet()) {
-                for (String value : entry.getValue()) {
-                    connection.addRequestProperty(entry.getKey(), value);
-                }
-            }
-            
-            // Leggi la risposta
-            int responseCode = connection.getResponseCode();
-            InputStream in = responseCode >= 400 ? connection.getErrorStream() : connection.getInputStream();
-            
-            // Converti InputStream in String
-            BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
-            }
-            reader.close();
-            
-            // Crea Response object
-            return new Response(
-                    responseCode,
-                    connection.getResponseMessage(),
-                    connection.getHeaderFields(),
-                    response.toString(),
-                    url.toString()
-            );
         }
     }
 
@@ -244,23 +183,31 @@ public class ServerService extends Service {
                     path = path.substring(0, path.indexOf("?"));
                 }
                 
-                // Gestisci la richiesta
-                String response;
-                if (path.equals("/ytinfo") && method.equals("GET")) {
-                    String videoId = params.get("id");
-                    if (videoId == null || videoId.isEmpty()) {
-                        response = "{\"error\":\"Missing id parameter\"}";
-                    } else {
-                        try {
-                            response = getVideoInfo(videoId);
-                        } catch (Exception e) {
-                            Log.e(TAG, "Errore nell'estrazione del video", e);
-                            response = "{\"error\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}";
-                        }
+                // Crea una risposta semplice che mostra i dettagli della richiesta
+                JSONObject responseJson = new JSONObject();
+                try {
+                    responseJson.put("status", "success");
+                    responseJson.put("message", "Richiesta ricevuta correttamente");
+                    responseJson.put("method", method);
+                    responseJson.put("path", path);
+                    responseJson.put("params", new JSONObject(params));
+                    responseJson.put("timestamp", System.currentTimeMillis());
+                    
+                    // Se c'è un ID video, aggiungiamolo alla risposta
+                    if (params.containsKey("id")) {
+                        String videoId = params.get("id");
+                        responseJson.put("videoId", videoId);
+                        
+                        // Aggiungiamo un URL audio fittizio per test
+                        responseJson.put("title", "Video di test: " + videoId);
+                        responseJson.put("thumbnail", "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg");
+                        responseJson.put("audio_url", "https://example.com/audio/" + videoId + ".mp3");
                     }
-                } else {
-                    response = "{\"status\":\"YT Audio Server running\",\"endpoints\":[\"/ytinfo?id=VIDEO_ID\"]}";
+                } catch (JSONException e) {
+                    Log.e(TAG, "Errore nella creazione della risposta JSON", e);
                 }
+                
+                String response = responseJson.toString();
                 
                 // Invia la risposta
                 OutputStream out = socket.getOutputStream();
@@ -276,65 +223,11 @@ public class ServerService extends Service {
                 // Chiudi la connessione
                 socket.close();
                 
-            } catch (IOException e) {
+            } catch (IOException | JSONException e) {
                 Log.e(TAG, "Errore gestione richiesta", e);
                 try {
                     socket.close();
                 } catch (IOException ignored) {}
-            }
-        }
-        
-        private String getVideoInfo(String videoId) {
-            try {
-                Log.d(TAG, "Estrazione info per video ID: " + videoId);
-                
-                // Crea URL YouTube
-                String url = "https://www.youtube.com/watch?v=" + videoId;
-                
-                // Ottieni servizio YouTube (ID 0)
-                StreamingService youtubeService = NewPipe.getService(0);
-                
-                // Estrai informazioni
-                Log.d(TAG, "Inizio estrazione StreamInfo...");
-                StreamInfo streamInfo = StreamInfo.getInfo(youtubeService, url);
-                Log.d(TAG, "StreamInfo estratto con successo");
-                
-                // Ottieni titolo e thumbnail
-                String title = streamInfo.getName();
-                Log.d(TAG, "Titolo: " + title);
-                
-                String thumbnail = "";
-                if (streamInfo.getThumbnails() != null && !streamInfo.getThumbnails().isEmpty()) {
-                    thumbnail = streamInfo.getThumbnails().get(0).getUrl();
-                    Log.d(TAG, "Thumbnail: " + thumbnail);
-                } else {
-                    Log.d(TAG, "Nessuna thumbnail trovata");
-                }
-                
-                // Ottieni URL audio
-                String audioUrl = "";
-                List<AudioStream> audioStreams = streamInfo.getAudioStreams();
-                if (!audioStreams.isEmpty()) {
-                    audioUrl = audioStreams.get(0).getUrl();
-                    Log.d(TAG, "URL audio trovato");
-                } else {
-                    Log.d(TAG, "Nessun URL audio trovato");
-                }
-                
-                // Crea risposta JSON
-                JSONObject result = new JSONObject();
-                result.put("title", title);
-                result.put("thumbnail", thumbnail);
-                result.put("audio_url", audioUrl);
-                
-                String jsonResult = result.toString();
-                Log.d(TAG, "Risposta JSON: " + jsonResult);
-                
-                return jsonResult;
-                
-            } catch (IOException | ExtractionException | JSONException e) {
-                Log.e(TAG, "Errore estrazione video", e);
-                return "{\"error\":\"" + e.getMessage().replace("\"", "\\\"") + "\"}";
             }
         }
     }
