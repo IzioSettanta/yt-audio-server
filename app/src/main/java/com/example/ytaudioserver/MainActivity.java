@@ -1,6 +1,8 @@
 package com.example.ytaudioserver;
 
 import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -9,6 +11,7 @@ import android.text.format.Formatter;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -50,11 +53,14 @@ public class MainActivity extends AppCompatActivity {
     private TextView statusTextView;
     private Button startButton;
     private Button stopButton;
+    private TextView versionTextView;
+    private EditText edtVideoId;
+    private TextView lblResult;
     
     private ServerSocket serverSocket;
     private boolean isServerRunning = false;
     private ExecutorService threadPool;
-    private static boolean newPipeInitialized = false; // Variabile di controllo
+    private static boolean newPipeInitialized = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,8 +73,20 @@ public class MainActivity extends AppCompatActivity {
         statusTextView = findViewById(R.id.statusTextView);
         startButton = findViewById(R.id.startButton);
         stopButton = findViewById(R.id.stopButton);
+        versionTextView = findViewById(R.id.versionTextView);
+        edtVideoId = findViewById(R.id.edtVideoId);
+        lblResult = findViewById(R.id.lblResult);
         
         threadPool = Executors.newCachedThreadPool();
+
+        try {
+            PackageInfo pInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            String version = pInfo.versionName + " (" + pInfo.versionCode + ")";
+            versionTextView.setText("Versione: " + version);
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "Errore nel recupero della versione", e);
+            versionTextView.setText("Versione: Sconosciuta");
+        }
 
         updateUI();
 
@@ -93,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 NewPipe.init(new RealDownloader(), Localization.DEFAULT);
                 Log.d(TAG, "NewPipe inizializzato con successo");
-                newPipeInitialized = true; // Imposta a true se ha successo
+                newPipeInitialized = true;
             } catch (Exception e) {
                 Log.e(TAG, "Errore inizializzazione NewPipe", e);
             }
