@@ -66,6 +66,14 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Inizializza NewPipe
+        try {
+            NewPipe.init(new RealDownloader(), Localization.DEFAULT);
+            Log.d(TAG, "NewPipe inizializzato con successo");
+        } catch (Exception e) {
+            Log.e(TAG, "Errore inizializzazione NewPipe", e);
+        }
         
         Log.d(TAG, "onCreate chiamato");
         showToast("App avviata");
