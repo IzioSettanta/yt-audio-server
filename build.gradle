@@ -50,8 +50,14 @@ dependencies {
     implementation 'com.google.android.material:material:1.6.1'
     
     // NewPipe Extractor
-    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.24.6'
+    implementation('com.github.TeamNewPipe:NewPipeExtractor:v0.24.6') {
+        exclude group: 'org.mozilla', module: 'rhino'  // Escludi Rhino dalla dipendenza
+    }
+    
+    // Usa una versione più recente di Rhino compatibile con Android
+    implementation 'org.mozilla:rhino:1.7.14'
     
     // NanoHTTPD - server HTTP leggero
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
 }
+
