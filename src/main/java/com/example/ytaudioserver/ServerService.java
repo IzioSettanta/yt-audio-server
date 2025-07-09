@@ -18,6 +18,8 @@ import org.json.JSONObject;
 import org.schabi.newpipe.extractor.NewPipe;
 import org.schabi.newpipe.extractor.StreamingService;
 import org.schabi.newpipe.extractor.downloader.Downloader;
+import org.schabi.newpipe.extractor.downloader.Request;
+import org.schabi.newpipe.extractor.downloader.Response;
 import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import org.schabi.newpipe.extractor.localization.Localization;
 import org.schabi.newpipe.extractor.stream.AudioStream;
@@ -53,17 +55,7 @@ public class ServerService extends Service {
         try {
             NewPipe.init(new Downloader() {
                 @Override
-                public String download(String url) throws IOException {
-                    return "";
-                }
-
-                @Override
-                public String download(String url, String language) throws IOException {
-                    return "";
-                }
-
-                @Override
-                public InputStream stream(String url) throws IOException {
+                public Response execute(Request request) throws IOException {
                     return null;
                 }
             }, Localization.DEFAULT);
@@ -248,7 +240,10 @@ public class ServerService extends Service {
                 
                 // Ottieni titolo e thumbnail
                 String title = streamInfo.getName();
-                String thumbnail = streamInfo.getThumbnailUrl();
+                String thumbnail = "";
+                if (streamInfo.getThumbnails() != null && !streamInfo.getThumbnails().isEmpty()) {
+                    thumbnail = streamInfo.getThumbnails().get(0).getUrl();
+                }
                 
                 // Ottieni URL audio
                 String audioUrl = "";
